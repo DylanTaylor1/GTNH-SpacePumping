@@ -1,111 +1,105 @@
-local component = require("component")
-local sides = require("sides")
+local config = require('config')
+local component = require('component')
+local sides = require('sides')
+local robot = require('robot')
 local me = component.upgrade_me
 local inv = component.inventory_controller
-local robot = require("robot")
-local rs = component.redstone
-local card_slots = {}
-local target_levels = {}
-local max_target = 0
+local r = component.redstone
+local master = {}
 
-print("Reading Cards...")
+-- ===================== FUNCTIONS ======================
 
-for i = 1, robot.inventorySize() + 1 do
-  local stack = inv.getStackInInternalSlot(i)
-  if stack == nil then
-    break
-  end
-  local label = stack.label
-  local j, _ = string.find(label, ":", 1, true)
-  local name = string.sub(label, 1, j - 1)
-  local target = tonumber(string.sub(label, j + 2))
-  card_slots[name] = i
-  target_levels[name] = target
-  if target > max_target then
-    max_target = target
+function mapCards()
+  for i=1, robot.inventorySize() + 1 do
+    local card = inv.getStackInInternalSlot(i)
+
+    -- Update card slot, add to master
+    if card ~= nil then
+      config[card.label].slot = i
+      master[card.label] = config[card.label]
+    else
+      break
+    end
   end
 end
 
-print("Done, max target is "..max_target)
 
-function set_redstone(l)
-  rs.setOutput({[0]=l,l,l,l,l,l})
+function updateFluids()
+  for _, fluid in pairs(master) do
+    fluid.amount = 0
+  end
+
+  -- Retrieve from ME network
+  for _, fluid in ipairs(me.getFluidsInNetwork()) do
+    if master[fluid.label] ~= nil then
+      master[fluid.label].amount = fluid.amount
+    end
+  end
 end
 
-function set_fluid(name)
-  robot.select(card_slots[name])
+
+function selectFluid()
+  local lowest = nil
+  local lowestPercent = 1
+
+  -- Iterate over the known cards
+  for label, fluid in pairs(master) do
+    local percent = fluid.amount / fluid.target
+    if percent < lowestPercent then
+      lowest = label
+      lowestPercent = percent
+    end
+  end
+  return lowest
+end
+
+
+function calcDuration(fluid)
+  return 1.05 * (master[fluid].target - master[fluid].amount) / (master[fluid].rate * config.mult)
+end
+
+
+function setFluid(fluid, duration)
+  -- Use appropriate card
+  robot.select(master[fluid].slot)
   inv.equip()
   robot.use()
   inv.equip()
+  r.setOutput(sides.front, 15)
+
+  -- Wait set duration
+  os.sleep(duration)
 end
 
-function swap_and_pump()
-  print("Stopping pump")
-  set_redstone(0)
-  os.sleep(1)
-  print("Finding lowest fluid ...")
-  local min_level = max_target
-  local min_name = "[disabled]"
-  local cur_levels = {}
-  local cur_target = 0
-  for _, fluid in ipairs(me.getFluidsInNetwork()) do
-    local target = target_levels[fluid.label]
-    if target ~= nil then
-      cur_levels[fluid.label] = fluid.amount
+-- ======================== MAIN ========================
+
+local function main()
+  print('autoPump: Reading Cards')
+  mapCards()
+
+  -- THE LOOP
+  while true do
+
+    -- Determine lowest fluid (% of target)
+    updateFluids()
+    fluid = selectFluid()
+
+    -- Set pump settings
+    if fluid ~= nil then
+      print(string.format('autoPump: Switching to %s', fluid))
+      duration = calcDuration(fluid)
+      setFluid(fluid, duration)
+    else
+      -- All targets reached, sleep for 3 minutes
+      print('autoPump: Standing by...')
+      os.sleep(180)
     end
-  end
-  for name, level in pairs(target_levels) do
-    if cur_levels[name] == nil then
-      min_level = 0
-      min_name = name
-      cur_target = level
-      break
-    end
-    local c = cur_levels[name]
-    if c < level and c < min_level then
-      min_level = c
-      min_name = name
-      cur_target = level
-    end
-  end
-  if min_name == "[disabled]" then
-    print("All fluids are full!")
-    os.sleep(180)
-    return
-  end
-  print("Lowest fluid: "..min_name)
-  set_fluid(min_name)
-  set_redstone(1)
-  os.sleep(10)
-  local new_level = cur_target
-  for _, fluid in ipairs(me.getFluidsInNetwork()) do
-    if fluid.label == min_name then
-      new_level = fluid.amount
-      break
-    end
-  end
-  if new_level >= cur_target then
-    set_redstone(0)
-    print("Done pumping fluid")
-    return
-  end
-  local pump_rate = (new_level - min_level)/10
-  local pump_time = 180
-  local stop_when_done = false
-  print("Pump rate:", pump_rate)
-  if pump_rate > 0 then
-    local time_to_full = (cur_target - new_level)/pump_rate
-    if time_to_full < pump_time then
-      pump_time = time_to_full
-      stop_when_done = true
-    end
-  end
-  os.sleep(pump_time)
-  if stop_when_done then
-    set_redstone(0)
+
+    -- Pause to change fluid
+    r.setOutput(sides.front, 0)
+    os.sleep(1)
+
   end
 end
 
-while true do
-  swap_and_pump()
-end
+main()
