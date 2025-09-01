@@ -3,7 +3,7 @@ local config = {
   -- Pumping Module Tier
   tier=3,
 
-  -- ONLY CHANGE THE "TARGETS", NOT THE AMOUNTS OR RATES
+  -- ONLY CHANGE THE "TARGET" VALUES, NOT THE AMOUNTS OR RATES
 
   -- Planet 2 ============================================================
   ['Chlorobenzene'] =     {target=1e10,  amount=0,  rate=896000}, -- Gas 1
@@ -22,7 +22,7 @@ local config = {
   ['Molten Lead'] =       {target=1e10,  amount=0,  rate=896000}, -- Gas 5
   ['Raw Oil'] =           {target=1e10,  amount=0,  rate=1400000}, -- Gas 6
   ['Light Oil'] =         {target=1e10,  amount=0,  rate=780000}, -- Gas 7
-  ['CO2 Gas'] =           {target=1e10,  amount=0,  rate=1680000}, -- Gas 8
+  ['Carbon Dioxide'] =    {target=1e10,  amount=0,  rate=1680000}, -- Gas 8
 
   -- Planet 5 ============================================================
   ['Carbon Monoxide'] =   {target=1e10,  amount=0,  rate=4480000}, -- Gas 1

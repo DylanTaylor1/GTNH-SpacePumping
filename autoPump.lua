@@ -74,7 +74,7 @@ end
 -- ======================== MAIN ========================
 
 local function main()
-  print('autoPump: Reading Cards')
+  print('autoPump: Mapping Cards')
   mapCards()
 
   -- THE LOOP
